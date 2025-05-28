@@ -1,8 +1,35 @@
 {
   "name": "backtesting-frontend",
   "version": "1.0.0",
-  "description": "React frontend for backtesting API with Recharts visualization",
+  "description": "Professional backtesting dashboard built with React, TypeScript, Bootstrap, and Recharts for visualizing trading strategy performance",
   "private": true,
+  "type": "module",
+  "keywords": [
+    "backtesting",
+    "trading",
+    "finance",
+    "react",
+    "typescript",
+    "charts",
+    "dashboard",
+    "bootstrap",
+    "recharts",
+    "technical-analysis"
+  ],
+  "author": "Backtesting Team",
+  "license": "MIT",
+  "homepage": ".",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-repo/backtesting-frontend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-repo/backtesting-frontend/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
   "dependencies": {
     "axios": "^1.6.0",
     "bootstrap": "^5.3.6",
@@ -27,10 +54,13 @@
     "vite": "^4.4.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "preview": "vite preview --host",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules/.vite"
   },
   "eslintConfig": {
     "extends": [

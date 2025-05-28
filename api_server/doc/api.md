@@ -1,119 +1,197 @@
-# Backtesting API 명세서
+# 백테스팅 API 명세서
 
-FastAPI 기반 백테스팅 API 서버의 상세 명세입니다.
+## 📋 개요
 
-## Base URL
+백테스팅 API는 주식 투자 전략의 과거 성과를 분석하기 위한 RESTful API입니다. 다양한 기술적 분석 전략을 지원하며, 차트 데이터와 성과 지표를 제공합니다.
 
+## 🌐 기본 정보
+
+- **Base URL**: `http://localhost:8000`
+- **API Version**: `v1`
+- **Content-Type**: `application/json`
+- **Authentication**: 현재 인증 없음 (개발용)
+
+## 📊 응답 형식
+
+### 성공 응답
+```json
+{
+  "status": "success",
+  "data": { ... },
+  "message": "요청이 성공적으로 처리되었습니다."
+}
 ```
-http://localhost:8000/api/v1
+
+### 오류 응답
+```json
+{
+  "detail": "오류 메시지",
+  "status_code": 400
+}
 ```
 
-## 데이터 소스
+## 🚀 API 엔드포인트
 
-- **Yahoo Finance**: 주식 가격 데이터 제공
-- **지원 티커**: 대부분의 미국 주식, ETF, 주요 국제 주식
-- **데이터 기간**: 1970년대부터 현재까지 (티커별로 상이)
-- **업데이트**: 실시간 (시장 개장 시간 기준)
+### 🏥 시스템 API
 
-## 인증
+#### `GET /health`
+전체 시스템 상태 확인
 
-현재 버전에서는 인증이 필요하지 않습니다.
+**응답 예시:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00",
+  "version": "1.0.0"
+}
+```
 
-## 응답 형식
-
-모든 API 응답은 JSON 형식이며, 성공 시 HTTP 상태 코드 200을 반환합니다.
-
-## 에러 처리
-
-- **400 Bad Request**: 잘못된 요청 파라미터
-- **404 Not Found**: 리소스를 찾을 수 없음
-- **500 Internal Server Error**: 서버 내부 오류
-- **503 Service Unavailable**: 서비스 이용 불가
+**상태 코드:**
+- `200 OK`: 시스템 정상
+- `503 Service Unavailable`: 서비스 불가
 
 ---
 
-## 1. 백테스팅 API
+## 🔬 백테스팅 API (`/api/v1/backtest`)
 
-### 1.1 백테스트 실행
+### `POST /api/v1/backtest/run`
+백테스트 실행
 
-주어진 전략과 파라미터로 백테스트를 실행합니다.
+**파라미터:**
 
-**Endpoint:** `POST /backtest/run`
+| 필드 | 타입 | 필수 | 설명 | 예시 |
+|------|------|------|------|------|
+| `ticker` | string | ✅ | 주식 티커 심볼 | `"AAPL"` |
+| `start_date` | string | ✅ | 시작 날짜 (YYYY-MM-DD) | `"2023-01-01"` |
+| `end_date` | string | ✅ | 종료 날짜 (YYYY-MM-DD) | `"2023-12-31"` |
+| `initial_cash` | number | ✅ | 초기 투자금 ($) | `10000` |
+| `strategy` | string | ✅ | 전략명 | `"buy_and_hold"` |
+| `strategy_params` | object | ❌ | 전략별 파라미터 | `{"short_window": 10}` |
+| `commission` | number | ❌ | 거래 수수료 (기본: 0.002) | `0.001` |
 
-**Request Body:**
+**요청 예시:**
 ```json
 {
   "ticker": "AAPL",
-  "start_date": "2020-01-01",
+  "start_date": "2023-01-01",
   "end_date": "2023-12-31",
-  "initial_cash": 10000.0,
+  "initial_cash": 10000,
   "strategy": "sma_crossover",
   "strategy_params": {
     "short_window": 10,
     "long_window": 20
   },
-  "commission": 0.002,
-  "spread": 0.0
+  "commission": 0.002
 }
 ```
 
-**Request Parameters:**
-- `ticker` (string, required): 주식 티커 심볼 (예: AAPL, GOOGL)
-- `start_date` (string, required): 백테스트 시작 날짜 (YYYY-MM-DD)
-- `end_date` (string, required): 백테스트 종료 날짜 (YYYY-MM-DD)
-- `initial_cash` (number, optional): 초기 투자금액 (기본값: 10000.0)
-- `strategy` (string, required): 전략명 (sma_crossover, rsi_strategy, bollinger_bands, macd_strategy, buy_and_hold)
-- `strategy_params` (object, optional): 전략별 파라미터 (기본값: 각 전략의 기본 파라미터 사용)
-- `commission` (number, optional): 거래 수수료 (기본값: 0.002)
-- `spread` (number, optional): 스프레드 (기본값: 0.0)
-
-**Strategy Parameters 상세 설명:**
-- `strategy_params`를 생략하면 각 전략의 기본 파라미터가 자동으로 적용됩니다
-- 일부 파라미터만 지정해도 나머지는 기본값이 사용됩니다
-- 잘못된 파라미터나 범위를 벗어난 값은 400 에러를 반환합니다
-
-**Response:**
+**응답 예시:**
 ```json
 {
   "ticker": "AAPL",
   "strategy": "sma_crossover",
-  "start_date": "2020-01-01",
+  "start_date": "2023-01-01",
   "end_date": "2023-12-31",
-  "duration_days": 1460,
-  "initial_cash": 10000.0,
-  "final_equity": 18543.75,
-  "total_return_pct": 85.44,
-  "annualized_return_pct": 18.25,
-  "buy_and_hold_return_pct": 127.45,
-  "cagr_pct": 17.95,
-  "volatility_pct": 28.45,
-  "sharpe_ratio": 0.64,
-  "sortino_ratio": 0.89,
-  "calmar_ratio": 0.42,
-  "max_drawdown_pct": -42.85,
-  "avg_drawdown_pct": -12.45,
-  "total_trades": 23,
-  "win_rate_pct": 52.2,
-  "profit_factor": 1.18,
-  "avg_trade_pct": 2.8,
-  "best_trade_pct": 15.2,
-  "worst_trade_pct": -8.9,
-  "alpha_pct": -8.5,
-  "beta": 0.82,
-  "kelly_criterion": 0.08,
-  "sqn": 0.95,
-  "execution_time_seconds": 1.84,
-  "timestamp": "2025-05-29T12:30:45.123456"
+  "initial_cash": 10000,
+  "final_value": 15480.32,
+  "total_return_pct": 54.80,
+  "annual_return_pct": 54.80,
+  "total_trades": 47,
+  "win_rate_pct": 63.8,
+  "max_drawdown_pct": -12.45,
+  "sharpe_ratio": 1.234,
+  "sortino_ratio": 1.567,
+  "calmar_ratio": 4.401,
+  "profit_factor": 2.45,
+  "buy_and_hold_return_pct": 54.80,
+  "alpha": 0.05,
+  "beta": 1.02,
+  "duration_days": 365,
+  "cagr_pct": 54.80,
+  "timestamp": "2024-01-15T10:30:00Z"
 }
 ```
 
-### 1.2 백테스트 서비스 상태 확인
+**상태 코드:**
+- `200 OK`: 백테스트 성공
+- `400 Bad Request`: 잘못된 파라미터
+- `500 Internal Server Error`: 백테스트 실행 오류
 
-백테스트 서비스의 상태를 확인합니다.
+### `POST /api/v1/backtest/chart-data`
+차트용 데이터 생성 (React/Recharts 호환)
 
-**Endpoint:** `GET /backtest/health`
+**파라미터:** 동일 (`/run`과 같음)
 
-**Response:**
+**응답 구조:**
+```json
+{
+  "ticker": "AAPL",
+  "strategy": "buy_and_hold",
+  "start_date": "2023-01-01",
+  "end_date": "2023-12-31",
+  "ohlc_data": [
+    {
+      "date": "2023-01-03",
+      "open": 130.28,
+      "high": 130.90,
+      "low": 124.17,
+      "close": 125.07,
+      "volume": 112117471
+    }
+  ],
+  "equity_data": [
+    {
+      "date": "2023-01-03",
+      "return_pct": 0.0,
+      "drawdown_pct": 0.0
+    }
+  ],
+  "trade_markers": [
+    {
+      "date": "2023-01-03",
+      "type": "entry",
+      "price": 125.07,
+      "size": 79.96,
+      "pnl_pct": 0.0
+    }
+  ],
+  "indicators": [
+    {
+      "name": "SMA_20",
+      "color": "#ff7300",
+      "data": [
+        {
+          "date": "2023-01-23",
+          "value": 127.45
+        }
+      ]
+    }
+  ],
+  "summary_stats": {
+    "total_return_pct": 54.80,
+    "total_trades": 1,
+    "win_rate_pct": 100.0,
+    "max_drawdown_pct": -12.45,
+    "sharpe_ratio": 1.234,
+    "profit_factor": 2.45
+  }
+}
+```
+
+**차트 데이터 설명:**
+
+| 필드 | 설명 | 용도 |
+|------|------|------|
+| `ohlc_data` | OHLC + 거래량 데이터 | 캔들스틱/라인 차트 |
+| `equity_data` | 자산 곡선 데이터 | 수익률/드로우다운 차트 |
+| `trade_markers` | 거래 시점 표시 | 산점도/마커 차트 |
+| `indicators` | 기술 지표 데이터 | 추가 라인 차트 |
+| `summary_stats` | 요약 통계 | 지표 카드/테이블 |
+
+### `GET /api/v1/backtest/health`
+백테스트 서비스 상태 확인
+
+**응답 예시:**
 ```json
 {
   "status": "healthy",
@@ -124,48 +202,50 @@ http://localhost:8000/api/v1
 
 ---
 
-## 2. 전략 관리 API
+## 📈 전략 관리 API (`/api/v1/strategies`)
 
-### 2.1 전략 목록 조회
+### `GET /api/v1/strategies/`
+사용 가능한 전략 목록 조회
 
-사용 가능한 모든 백테스팅 전략의 목록과 정보를 반환합니다.
-
-**Endpoint:** `GET /strategies/`
-
-**Response:**
+**응답 예시:**
 ```json
 {
   "strategies": [
     {
+      "name": "buy_and_hold",
+      "description": "매수 후 보유 전략 - 단순히 주식을 매수하여 보유",
+      "parameters": {}
+    },
+    {
       "name": "sma_crossover",
-      "description": "단순 이동평균 교차 전략",
+      "description": "단순 이동평균 교차 전략 - 단기/장기 이동평균 교차로 매매",
       "parameters": {
         "short_window": {
           "type": "int",
           "default": 10,
           "min": 5,
           "max": 50,
-          "description": "단기 이동평균 기간"
+          "description": "단기 이동평균 기간 (일)"
         },
         "long_window": {
-          "type": "int",
+          "type": "int", 
           "default": 20,
           "min": 10,
           "max": 200,
-          "description": "장기 이동평균 기간"
+          "description": "장기 이동평균 기간 (일)"
         }
       }
     },
     {
       "name": "rsi_strategy",
-      "description": "RSI 과매수/과매도 기반 전략",
+      "description": "RSI 전략 - 과매수/과매도 구간에서 매매",
       "parameters": {
         "rsi_period": {
           "type": "int",
           "default": 14,
           "min": 5,
           "max": 50,
-          "description": "RSI 계산 기간"
+          "description": "RSI 계산 기간 (일)"
         },
         "rsi_upper": {
           "type": "float",
@@ -182,22 +262,66 @@ http://localhost:8000/api/v1
           "description": "과매도 임계값"
         }
       }
+    },
+    {
+      "name": "bollinger_bands",
+      "description": "볼린저 밴드 전략 - 밴드 상/하단 돌파로 매매",
+      "parameters": {
+        "period": {
+          "type": "int",
+          "default": 20,
+          "min": 10,
+          "max": 50,
+          "description": "이동평균 기간 (일)"
+        },
+        "std_dev": {
+          "type": "float",
+          "default": 2.0,
+          "min": 1.0,
+          "max": 3.0,
+          "description": "표준편차 배수"
+        }
+      }
+    },
+    {
+      "name": "macd_strategy",
+      "description": "MACD 전략 - MACD 라인 교차로 매매",
+      "parameters": {
+        "fast_period": {
+          "type": "int",
+          "default": 12,
+          "min": 5,
+          "max": 20,
+          "description": "빠른 EMA 기간 (일)"
+        },
+        "slow_period": {
+          "type": "int",
+          "default": 26,
+          "min": 20,
+          "max": 50,
+          "description": "느린 EMA 기간 (일)"
+        },
+        "signal_period": {
+          "type": "int",
+          "default": 9,
+          "min": 5,
+          "max": 15,
+          "description": "시그널 라인 기간 (일)"
+        }
+      }
     }
   ],
   "total_count": 5
 }
 ```
 
-### 2.2 특정 전략 정보 조회
-
-지정된 전략의 상세 정보를 반환합니다.
-
-**Endpoint:** `GET /strategies/{strategy_name}`
+### `GET /api/v1/strategies/{strategy_name}`
+특정 전략 정보 조회
 
 **Path Parameters:**
-- `strategy_name` (string): 조회할 전략명
+- `strategy_name`: 조회할 전략명
 
-**Response:**
+**응답 예시:**
 ```json
 {
   "name": "sma_crossover",
@@ -221,21 +345,20 @@ http://localhost:8000/api/v1
 }
 ```
 
-### 2.3 전략 파라미터 유효성 검증
+**상태 코드:**
+- `200 OK`: 전략 정보 조회 성공
+- `404 Not Found`: 존재하지 않는 전략
 
-주어진 파라미터가 전략에 유효한지 검증합니다.
-
-**Endpoint:** `GET /strategies/{strategy_name}/validate`
+### `GET /api/v1/strategies/{strategy_name}/validate`
+전략 파라미터 유효성 검증
 
 **Path Parameters:**
-- `strategy_name` (string): 검증할 전략명
+- `strategy_name`: 검증할 전략명
 
 **Query Parameters:**
-전략별 파라미터들을 쿼리 파라미터로 전달
+전략별 파라미터들 (예: `?short_window=10&long_window=20`)
 
-**Example:** `GET /strategies/sma_crossover/validate?short_window=10&long_window=20`
-
-**Response:**
+**응답 예시 (성공):**
 ```json
 {
   "strategy": "sma_crossover",
@@ -248,79 +371,88 @@ http://localhost:8000/api/v1
 }
 ```
 
+**응답 예시 (실패):**
+```json
+{
+  "strategy": "sma_crossover",
+  "is_valid": false,
+  "error": "short_window 값이 long_window보다 크거나 같을 수 없습니다.",
+  "message": "파라미터 검증에 실패했습니다."
+}
+```
+
 ---
 
-## 3. 최적화 API
+## ⚙️ 최적화 API (`/api/v1/optimize`)
 
-### 3.1 파라미터 최적화 실행
+### `POST /api/v1/optimize/run`
+전략 파라미터 최적화 실행
 
-주어진 전략의 파라미터를 최적화하여 최고 성능을 찾습니다.
+**파라미터:**
 
-**Endpoint:** `POST /optimize/run`
+| 필드 | 타입 | 필수 | 설명 | 예시 |
+|------|------|------|------|------|
+| `ticker` | string | ✅ | 주식 티커 심볼 | `"AAPL"` |
+| `start_date` | string | ✅ | 시작 날짜 | `"2023-01-01"` |
+| `end_date` | string | ✅ | 종료 날짜 | `"2023-12-31"` |
+| `initial_cash` | number | ✅ | 초기 투자금 | `10000` |
+| `strategy` | string | ✅ | 최적화할 전략명 | `"sma_crossover"` |
+| `param_ranges` | object | ✅ | 파라미터별 최적화 범위 | `{"short_window": [5,15]}` |
+| `method` | string | ❌ | 최적화 방법 (기본: "grid") | `"grid"` 또는 `"sambo"` |
+| `maximize` | string | ❌ | 최적화 대상 지표 (기본: "SQN") | `"SQN"` |
+| `max_tries` | number | ❌ | 최대 시도 횟수 (기본: 100) | `200` |
 
-**Request Body:**
+**요청 예시:**
 ```json
 {
   "ticker": "AAPL",
-  "start_date": "2020-01-01",
+  "start_date": "2023-01-01",
   "end_date": "2023-12-31",
-  "initial_cash": 10000.0,
+  "initial_cash": 10000,
   "strategy": "sma_crossover",
   "param_ranges": {
     "short_window": [5, 15],
     "long_window": [20, 50]
   },
   "method": "grid",
-  "maximize": "SQN",
-  "max_tries": 100,
-  "commission": 0.002
+  "maximize": "Sharpe Ratio",
+  "max_tries": 100
 }
 ```
 
-**Request Parameters:**
-- `ticker` (string, required): 주식 티커 심볼
-- `start_date` (string, required): 백테스트 시작 날짜 (YYYY-MM-DD)
-- `end_date` (string, required): 백테스트 종료 날짜 (YYYY-MM-DD)
-- `initial_cash` (number, optional): 초기 투자금액 (기본값: 10000.0)
-- `strategy` (string, required): 최적화할 전략명
-- `param_ranges` (object, required): 파라미터별 최적화 범위 [min, max]
-- `method` (string, optional): 최적화 방법 ("grid" 또는 "sambo", 기본값: "grid")
-- `maximize` (string, optional): 최적화할 지표 (기본값: "SQN")
-- `max_tries` (number, optional): 최대 시도 횟수 (기본값: 100)
-- `commission` (number, optional): 거래 수수료 (기본값: 0.002)
-
-**Response:**
+**응답 예시:**
 ```json
 {
   "ticker": "AAPL",
   "strategy": "sma_crossover",
-  "method": "grid",
-  "total_iterations": 100,
+  "optimization_target": "Sharpe Ratio",
+  "optimization_method": "grid",
   "best_params": {
     "short_window": 8,
     "long_window": 25
   },
-  "best_score": 2.15,
-  "optimization_target": "SQN",
-  "backtest_result": {
-    "ticker": "AAPL",
-    "strategy": "sma_crossover",
-    "total_return_pct": 65.8,
-    "sharpe_ratio": 0.72,
-    "max_drawdown_pct": -18.5
+  "best_result": {
+    "sharpe_ratio": 1.845,
+    "total_return_pct": 67.32,
+    "max_drawdown_pct": -8.45,
+    "total_trades": 23,
+    "win_rate_pct": 69.6
   },
-  "execution_time_seconds": 45.2,
-  "timestamp": "2024-01-15T10:45:00"
+  "optimization_history": [
+    {
+      "params": {"short_window": 5, "long_window": 20},
+      "result": {"sharpe_ratio": 1.234, "total_return_pct": 45.67}
+    }
+  ],
+  "total_combinations_tested": 66,
+  "execution_time_seconds": 45.6
 }
 ```
 
-### 3.2 최적화 대상 지표 목록
+### `GET /api/v1/optimize/targets`
+최적화 가능한 지표 목록 조회
 
-최적화 대상으로 사용할 수 있는 성능 지표들의 목록을 반환합니다.
-
-**Endpoint:** `GET /optimize/targets`
-
-**Response:**
+**응답 예시:**
 ```json
 {
   "targets": {
@@ -335,8 +467,28 @@ http://localhost:8000/api/v1
       "higher_better": true
     },
     "Sharpe Ratio": {
-      "name": "Sharpe Ratio",
+      "name": "Sharpe Ratio", 
       "description": "샤프 비율 - 위험 대비 수익률",
+      "higher_better": true
+    },
+    "Sortino Ratio": {
+      "name": "Sortino Ratio",
+      "description": "소르티노 비율 - 하방 위험 대비 수익률",
+      "higher_better": true
+    },
+    "Calmar Ratio": {
+      "name": "Calmar Ratio",
+      "description": "칼마 비율 - 최대 손실 대비 연간 수익률",
+      "higher_better": true
+    },
+    "Profit Factor": {
+      "name": "Profit Factor",
+      "description": "수익 팩터 - 총 이익 대비 총 손실",
+      "higher_better": true
+    },
+    "Win Rate [%]": {
+      "name": "Win Rate",
+      "description": "승률 - 수익 거래 비율",
       "higher_better": true
     },
     "Max. Drawdown [%]": {
@@ -350,13 +502,10 @@ http://localhost:8000/api/v1
 }
 ```
 
-### 3.3 최적화 방법 목록
+### `GET /api/v1/optimize/methods`
+사용 가능한 최적화 방법 목록 조회
 
-파라미터 최적화에 사용할 수 있는 방법들의 목록을 반환합니다.
-
-**Endpoint:** `GET /optimize/methods`
-
-**Response:**
+**응답 예시:**
 ```json
 {
   "methods": {
@@ -382,183 +531,242 @@ http://localhost:8000/api/v1
 
 ---
 
-## 4. 시스템 API
+## 🛠️ 클라이언트 예시
 
-### 4.1 헬스체크
-
-서버와 주요 서비스들의 상태를 확인합니다.
-
-**Endpoint:** `GET /health`
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:30:00",
-  "version": "1.0.0"
-}
-```
-
----
-
-## 5. 사용 가능한 전략
-
-### 5.1 SMA Crossover (sma_crossover)
-단순 이동평균 교차 전략
-
-**파라미터:**
-- `short_window` (int): 단기 이동평균 기간 (5-50, 기본값: 10)
-- `long_window` (int): 장기 이동평균 기간 (10-200, 기본값: 20)
-
-### 5.2 RSI Strategy (rsi_strategy)
-RSI 과매수/과매도 기반 전략
-
-**파라미터:**
-- `rsi_period` (int): RSI 계산 기간 (5-50, 기본값: 14)
-- `rsi_upper` (float): 과매수 임계값 (50-90, 기본값: 70)
-- `rsi_lower` (float): 과매도 임계값 (10-50, 기본값: 30)
-
-### 5.3 Bollinger Bands (bollinger_bands)
-볼린저 밴드 기반 전략
-
-**파라미터:**
-- `period` (int): 이동평균 기간 (10-50, 기본값: 20)
-- `std_dev` (float): 표준편차 배수 (1.0-3.0, 기본값: 2.0)
-
-### 5.4 MACD Strategy (macd_strategy)
-MACD 교차 기반 전략
-
-**파라미터:**
-- `fast_period` (int): 빠른 EMA 기간 (5-20, 기본값: 12)
-- `slow_period` (int): 느린 EMA 기간 (20-50, 기본값: 26)
-- `signal_period` (int): 시그널 라인 기간 (5-15, 기본값: 9)
-
-### 5.5 Buy and Hold (buy_and_hold)
-매수 후 보유 전략
-
-**파라미터:** 없음
-
----
-
-## 6. 예시 코드
-
-### Python requests를 사용한 백테스트 실행
+### Python 클라이언트
 
 ```python
 import requests
 import json
+from datetime import datetime, timedelta
 
-# 백테스트 실행 (기본 파라미터 사용)
-url = "http://localhost:8000/api/v1/backtest/run"
-data = {
-    "ticker": "AAPL",
-    "start_date": "2020-01-01",
-    "end_date": "2023-12-31",
-    "initial_cash": 10000,
-    "strategy": "sma_crossover"
-}
+class BacktestClient:
+    def __init__(self, base_url="http://localhost:8000"):
+        self.base_url = base_url
+        
+    def run_backtest(self, ticker, strategy, start_date, end_date, 
+                     initial_cash=10000, strategy_params=None):
+        """백테스트 실행"""
+        url = f"{self.base_url}/api/v1/backtest/run"
+        
+        payload = {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date,
+            "initial_cash": initial_cash,
+            "strategy": strategy,
+            "strategy_params": strategy_params or {}
+        }
+        
+        response = requests.post(url, json=payload)
+        return response.json()
+    
+    def get_chart_data(self, ticker, strategy, start_date, end_date,
+                       initial_cash=10000, strategy_params=None):
+        """차트 데이터 조회"""
+        url = f"{self.base_url}/api/v1/backtest/chart-data"
+        
+        payload = {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date,
+            "initial_cash": initial_cash,
+            "strategy": strategy,
+            "strategy_params": strategy_params or {}
+        }
+        
+        response = requests.post(url, json=payload)
+        return response.json()
+    
+    def get_strategies(self):
+        """전략 목록 조회"""
+        url = f"{self.base_url}/api/v1/strategies/"
+        response = requests.get(url)
+        return response.json()
+    
+    def optimize_strategy(self, ticker, strategy, param_ranges, 
+                         start_date, end_date, method="grid"):
+        """파라미터 최적화"""
+        url = f"{self.base_url}/api/v1/optimize/run"
+        
+        payload = {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date,
+            "strategy": strategy,
+            "param_ranges": param_ranges,
+            "method": method
+        }
+        
+        response = requests.post(url, json=payload)
+        return response.json()
 
-response = requests.post(url, json=data)
-result = response.json()
-print(f"Total Return: {result['total_return_pct']:.2f}%")
-print(f"Sharpe Ratio: {result['sharpe_ratio']:.3f}")
+# 사용 예시
+client = BacktestClient()
 
-# 커스텀 파라미터로 백테스트 실행
-data_custom = {
-    "ticker": "AAPL", 
-    "start_date": "2020-01-01",
-    "end_date": "2023-12-31",
-    "initial_cash": 10000,
-    "strategy": "sma_crossover",
-    "strategy_params": {
-        "short_window": 5,
-        "long_window": 25
-    }
-}
+# 1. 백테스트 실행
+result = client.run_backtest(
+    ticker="AAPL",
+    strategy="sma_crossover",
+    start_date="2023-01-01",
+    end_date="2023-12-31",
+    strategy_params={"short_window": 10, "long_window": 20}
+)
+print(f"수익률: {result['total_return_pct']:.2f}%")
 
-response = requests.post(url, json=data_custom)
-result = response.json()
-print(f"Custom Strategy Return: {result['total_return_pct']:.2f}%")
+# 2. 차트 데이터 조회
+chart_data = client.get_chart_data(
+    ticker="AAPL",
+    strategy="buy_and_hold",
+    start_date="2023-01-01",
+    end_date="2023-12-31"
+)
+print(f"OHLC 데이터 포인트: {len(chart_data['ohlc_data'])}")
+
+# 3. 전략 목록 조회
+strategies = client.get_strategies()
+print(f"사용 가능한 전략: {len(strategies['strategies'])}개")
+
+# 4. 파라미터 최적화
+optimization = client.optimize_strategy(
+    ticker="AAPL",
+    strategy="sma_crossover",
+    param_ranges={
+        "short_window": [5, 15],
+        "long_window": [20, 50]
+    },
+    start_date="2023-01-01",
+    end_date="2023-12-31"
+)
+print(f"최적 파라미터: {optimization['best_params']}")
 ```
 
-### curl을 사용한 전략 목록 조회
-
-```bash
-curl -X GET "http://localhost:8000/api/v1/strategies/" \
-     -H "Accept: application/json"
-```
-
-### JavaScript fetch를 사용한 최적화
+### JavaScript/React 클라이언트
 
 ```javascript
-const optimizeStrategy = async () => {
-  const response = await fetch('http://localhost:8000/api/v1/optimize/run', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      ticker: 'AAPL',
-      start_date: '2020-01-01',
-      end_date: '2023-12-31',
-      initial_cash: 10000,
-      strategy: 'sma_crossover',
-      param_ranges: {
-        short_window: [5, 15],
-        long_window: [20, 50]
+class BacktestAPI {
+  constructor(baseUrl = 'http://localhost:8000') {
+    this.baseUrl = baseUrl;
+  }
+
+  async runBacktest(params) {
+    const response = await fetch(`${this.baseUrl}/api/v1/backtest/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      method: 'grid'
-    })
-  });
-  
-  const result = await response.json();
-  console.log('Best parameters:', result.best_params);
-  console.log('Best score:', result.best_score);
+      body: JSON.stringify(params),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  async getChartData(params) {
+    const response = await fetch(`${this.baseUrl}/api/v1/backtest/chart-data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+    
+    return response.json();
+  }
+
+  async getStrategies() {
+    const response = await fetch(`${this.baseUrl}/api/v1/strategies/`);
+    return response.json();
+  }
+
+  async optimizeStrategy(params) {
+    const response = await fetch(`${this.baseUrl}/api/v1/optimize/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+    
+    return response.json();
+  }
+}
+
+// 사용 예시
+const api = new BacktestAPI();
+
+// React 컴포넌트에서 사용
+const BacktestComponent = () => {
+  const [chartData, setChartData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const runBacktest = async () => {
+    setLoading(true);
+    try {
+      const result = await api.getChartData({
+        ticker: 'AAPL',
+        start_date: '2023-01-01',
+        end_date: '2023-12-31',
+        initial_cash: 10000,
+        strategy: 'buy_and_hold'
+      });
+      setChartData(result);
+    } catch (error) {
+      console.error('백테스트 오류:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={runBacktest} disabled={loading}>
+        {loading ? '실행 중...' : '백테스트 실행'}
+      </button>
+      
+      {chartData && (
+        <LineChart data={chartData.equity_data}>
+          <XAxis dataKey="date" />
+          <YAxis />
+          <Line dataKey="return_pct" stroke="#8884d8" />
+        </LineChart>
+      )}
+    </div>
+  );
 };
 ```
 
+## 🚨 오류 코드
+
+| 상태 코드 | 설명 | 원인 | 해결 방법 |
+|-----------|------|------|-----------|
+| `400` | Bad Request | 잘못된 파라미터 | 요청 파라미터 확인 |
+| `404` | Not Found | 존재하지 않는 리소스 | URL 및 전략명 확인 |
+| `422` | Validation Error | 데이터 형식 오류 | 데이터 타입 및 범위 확인 |
+| `500` | Internal Server Error | 서버 내부 오류 | 서버 로그 확인 |
+| `503` | Service Unavailable | 서비스 불가 | 데이터 소스 연결 확인 |
+
+## 📝 제한사항
+
+- **백테스트 기간**: 최소 30일, 최대 10년
+- **동시 요청**: 개발 환경에서는 제한 없음
+- **데이터 소스**: Yahoo Finance (무료 서비스 제한 적용)
+- **티커 지원**: 미국 주식 시장 (NYSE, NASDAQ)
+- **캐시 유효기간**: 24시간
+
+## 🔒 보안 고려사항
+
+현재 개발 환경에서는 인증이 없지만, 프로덕션 환경에서는 다음을 고려해야 합니다:
+
+- API 키 기반 인증
+- 요청 속도 제한 (Rate Limiting)
+- CORS 정책 강화
+- HTTPS 강제 사용
+- 입력 데이터 검증 강화
+
 ---
 
-## 7. 에러 응답 예시
-
-### 400 Bad Request - 잘못된 날짜 범위
-```json
-{
-  "detail": "종료 날짜는 시작 날짜보다 이후여야 합니다"
-}
-```
-
-### 400 Bad Request - 파라미터 범위 오류
-```json
-{
-  "detail": "short_window의 값 3는 최소값 5보다 작습니다"
-}
-```
-
-### 400 Bad Request - 데이터 수집 실패
-```json
-{
-  "detail": "데이터 수집 실패: INVALID_TICKER - 티커 'INVALID_TICKER'에 대한 데이터를 찾을 수 없습니다"
-}
-```
-
-### 404 Not Found
-```json
-{
-  "detail": "지원하지 않는 전략: invalid_strategy"
-}
-```
-
-### 500 Internal Server Error
-```json
-{
-  "detail": "백테스트 실행 중 오류가 발생했습니다."
-}
-```
-
-### 503 Service Unavailable
-```json
-{
-  "detail": "데이터 소스 연결에 문제가 있습니다."
-}
-```
+**참고**: 이 API는 교육 및 연구 목적으로 설계되었습니다. 실제 투자 결정에 사용하기 전에 충분한 검토와 추가 분석이 필요합니다.
