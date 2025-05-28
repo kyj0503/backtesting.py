@@ -64,13 +64,21 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const OHLCChart: React.FC<{ data: ChartDataPoint[]; indicators: IndicatorData[]; trades: TradeMarker[] }> = ({ 
   data, indicators, trades 
 }) => {
+  console.log('OHLCChart - 받은 데이터:', { data: data?.length, indicators: indicators?.length, trades: trades?.length }); // 디버깅용
+  console.log('OHLCChart - 첫 번째 데이터 샘플:', data?.[0]); // 데이터 구조 확인
+  
+  // 안전한 데이터 처리
+  const safeData = data || [];
+  const safeIndicators = indicators || [];
+  const safeTrades = trades || [];
+  
   // 데이터 병합 (OHLC + 지표)
-  const mergedData = data.map(ohlc => {
+  const mergedData = safeData.map(ohlc => {
     const point: any = { ...ohlc };
     
     // 지표 데이터 추가
-    indicators.forEach(indicator => {
-      const indicatorPoint = indicator.data.find(d => d.date === ohlc.date);
+    safeIndicators.forEach(indicator => {
+      const indicatorPoint = indicator.data?.find(d => d.date === ohlc.date);
       if (indicatorPoint) {
         point[indicator.name] = indicatorPoint.value;
       }
@@ -79,114 +87,140 @@ const OHLCChart: React.FC<{ data: ChartDataPoint[]; indicators: IndicatorData[];
     return point;
   });
 
+  console.log('OHLCChart - 병합된 데이터 샘플:', mergedData?.[0]); // 병합 결과 확인
+  console.log('OHLCChart - 병합된 데이터 길이:', mergedData?.length);
+  console.log('OHLCChart - 전체 병합 데이터 (처음 3개):', mergedData?.slice(0, 3));
+
   return (
     <div className="w-full h-96">
       <h3 className="text-lg font-bold mb-2">가격 차트 및 기술 지표</h3>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={mergedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-          <XAxis 
-            dataKey="date" 
-            tick={{ fontSize: 12 }}
-            interval="preserveStartEnd"
-          />
-          <YAxis yAxisId="price" orientation="right" />
-          <YAxis yAxisId="volume" orientation="left" />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend />
-          
-          {/* 거래량 */}
-          <Bar 
-            yAxisId="volume"
-            dataKey="volume" 
-            fill="#8884d8" 
-            opacity={0.3}
-            name="거래량"
-          />
-          
-          {/* 종가 라인 */}
-          <Line 
-            yAxisId="price"
-            type="monotone" 
-            dataKey="close" 
-            stroke="#2563eb" 
-            strokeWidth={2}
-            dot={false}
-            name="종가"
-          />
-          
-          {/* 기술 지표들 */}
-          {indicators.map((indicator, index) => (
-            <Line
-              key={indicator.name}
-              yAxisId="price"
-              type="monotone"
-              dataKey={indicator.name}
-              stroke={indicator.color}
-              strokeWidth={1.5}
-              dot={false}
-              name={indicator.name}
-              strokeDasharray={index % 2 === 1 ? "5 5" : undefined}
-            />
-          ))}
-          
-          {/* 거래 마커 */}
-          {trades.map((trade, index) => (
-            <ReferenceLine
-              key={index}
-              yAxisId="price"
-              x={trade.date}
-              stroke={trade.type === 'entry' ? '#10b981' : '#ef4444'}
-              strokeWidth={2}
-              strokeDasharray="2 2"
-            />
-          ))}
-        </ComposedChart>
-      </ResponsiveContainer>
+      {safeData && safeData.length > 0 ? (
+        <div style={{ width: '100%', height: '400px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={mergedData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 12 }}
+                interval="preserveStartEnd"
+              />
+              <YAxis yAxisId="price" orientation="right" />
+              <YAxis yAxisId="volume" orientation="left" />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              
+              {/* 거래량 */}
+              <Bar 
+                yAxisId="volume"
+                dataKey="volume" 
+                fill="#8884d8" 
+                opacity={0.3}
+                name="거래량"
+              />
+              
+              {/* 종가 라인 */}
+              <Line 
+                yAxisId="price"
+                type="monotone" 
+                dataKey="close" 
+                stroke="#2563eb" 
+                strokeWidth={2}
+                dot={false}
+                name="종가"
+              />
+              
+              {/* 기술 지표들 */}
+              {safeIndicators.map((indicator, index) => (
+                <Line
+                  key={indicator.name}
+                  yAxisId="price"
+                  type="monotone"
+                  dataKey={indicator.name}
+                  stroke={indicator.color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  name={indicator.name}
+                  strokeDasharray={index % 2 === 1 ? "5 5" : undefined}
+                />
+              ))}
+              
+              {/* 거래 마커 */}
+              {safeTrades.map((trade, index) => (
+                <ReferenceLine
+                  key={index}
+                  yAxisId="price"
+                  x={trade.date}
+                  stroke={trade.type === 'entry' ? '#10b981' : '#ef4444'}
+                  strokeWidth={2}
+                  strokeDasharray="2 2"
+                />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center h-full bg-gray-100 rounded">
+          <p className="text-gray-500">차트 데이터가 없습니다. (데이터 수: {safeData?.length || 0})</p>
+        </div>
+      )}
     </div>
   );
 };
 
 // 자산 곡선 차트 컴포넌트
 const EquityChart: React.FC<{ data: EquityPoint[] }> = ({ data }) => {
+  console.log('EquityChart - 받은 데이터:', data?.length || 0); // 디버깅용
+  console.log('EquityChart - 첫 번째 데이터 샘플:', data?.[0]); // 데이터 구조 확인
+  
+  // 안전한 데이터 처리
+  const safeData = data || [];
+  
   return (
     <div className="w-full h-80">
       <h3 className="text-lg font-bold mb-2">자산 곡선</h3>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-          <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-          <YAxis yAxisId="return" orientation="left" />
-          <YAxis yAxisId="drawdown" orientation="right" />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend />
-          
-          {/* 수익률 라인 */}
-          <Line 
-            yAxisId="return"
-            type="monotone" 
-            dataKey="return_pct" 
-            stroke="#10b981" 
-            strokeWidth={2}
-            dot={false}
-            name="수익률 (%)"
-          />
-          
-          {/* 드로우다운 영역 */}
-          <Area
-            yAxisId="drawdown"
-            type="monotone"
-            dataKey="drawdown_pct"
-            stroke="#ef4444"
-            fill="#ef4444"
-            fillOpacity={0.3}
-            name="드로우다운 (%)"
-          />
-          
-          {/* 0% 기준선 */}
-          <ReferenceLine yAxisId="return" y={0} stroke="#666" strokeDasharray="2 2" />
-        </ComposedChart>
-      </ResponsiveContainer>
+      {safeData && safeData.length > 0 ? (
+        <div style={{ width: '100%', height: '320px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={safeData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              <YAxis yAxisId="return" orientation="left" />
+              <YAxis yAxisId="drawdown" orientation="right" />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              
+              {/* 수익률 라인 */}
+              <Line 
+                yAxisId="return"
+                type="monotone" 
+                dataKey="return_pct" 
+                stroke="#10b981" 
+                strokeWidth={2}
+                dot={false}
+                name="수익률 (%)"
+              />
+              
+              {/* 드로우다운 영역 */}
+              <Area
+                yAxisId="drawdown"
+                type="monotone"
+                dataKey="drawdown_pct"
+                stroke="#ef4444"
+                fill="#ef4444"
+                fillOpacity={0.3}
+                name="드로우다운 (%)"
+              />
+              
+              {/* 0% 기준선 */}
+              <ReferenceLine yAxisId="return" y={0} stroke="#666" strokeDasharray="2 2" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center h-full bg-gray-100 rounded">
+          <p className="text-gray-500">자산 곡선 데이터가 없습니다. (데이터 수: {safeData?.length || 0})</p>
+        </div>
+      )}
     </div>
   );
 };
@@ -263,6 +297,30 @@ const StatsSummary: React.FC<{ stats: ChartDataResponse['summary_stats'] }> = ({
   );
 };
 
+// 테스트 차트 컴포넌트 (Recharts 작동 확인용)
+const TestChart = () => {
+  const testData = [
+    { name: 'A', value: 100 },
+    { name: 'B', value: 200 },
+    { name: 'C', value: 150 },
+  ];
+
+  return (
+    <div className="w-full h-64 bg-yellow-100 p-4 rounded">
+      <h3 className="text-lg font-bold mb-2">테스트 차트 (Recharts 작동 확인)</h3>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={testData}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip />
+          <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 // 메인 App 컴포넌트
 function App() {
   const [chartData, setChartData] = useState<ChartDataResponse | null>(null);
@@ -288,6 +346,11 @@ function App() {
       };
       
       const data = await fetchChartData(params);
+      console.log('받은 차트 데이터:', data); // 디버깅용
+      console.log('OHLC 데이터 수:', data.ohlc_data?.length || 0);
+      console.log('자산 곡선 데이터 수:', data.equity_data?.length || 0);
+      console.log('거래 마커 수:', data.trade_markers?.length || 0);
+      console.log('지표 수:', data.indicators?.length || 0);
       setChartData(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
