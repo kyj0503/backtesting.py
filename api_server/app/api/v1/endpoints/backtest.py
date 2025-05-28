@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, HTTPException, status
 from ....models.requests import BacktestRequest
-from ....models.responses import BacktestResult, ErrorResponse
+from ....models.responses import BacktestResult, ErrorResponse, ChartDataResponse
 from ....services.backtest_service import backtest_service
 import logging
 
@@ -85,4 +85,66 @@ async def backtest_health():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="백테스트 서비스 상태 확인 실패"
+        )
+
+
+@router.post(
+    "/chart-data",
+    response_model=ChartDataResponse,
+    status_code=status.HTTP_200_OK,
+    summary="백테스트 차트 데이터",
+    description="백테스트 결과를 Recharts용 차트 데이터로 반환합니다."
+)
+async def get_chart_data(request: BacktestRequest):
+    """
+    백테스트 차트 데이터 API
+    
+    백테스트를 실행하고 결과를 Recharts 라이브러리에서 사용할 수 있는 
+    JSON 형태의 차트 데이터로 반환합니다.
+    
+    **반환 데이터:**
+    - **ohlc_data**: 캔들스틱 차트용 OHLC 데이터
+    - **equity_data**: 자산 곡선 데이터
+    - **trade_markers**: 거래 진입/청산 마커
+    - **indicators**: 기술 지표 데이터
+    - **summary_stats**: 주요 성과 지표
+    
+    **사용 예시 (React + Recharts):**
+    ```javascript
+    // 캔들스틱 차트
+    <ComposedChart data={chartData.ohlc_data}>
+      <XAxis dataKey="date" />
+      <YAxis />
+      <Bar dataKey="volume" />
+      <Line dataKey="close" />
+    </ComposedChart>
+    
+    // 자산 곡선
+    <LineChart data={chartData.equity_data}>
+      <Line dataKey="return_pct" stroke="#8884d8" />
+      <Line dataKey="drawdown_pct" stroke="#ff0000" />
+    </LineChart>
+    ```
+    """
+    try:
+        # 요청 유효성 검증
+        backtest_service.validate_backtest_request(request)
+        
+        # 차트 데이터 생성
+        chart_data = await backtest_service.generate_chart_data(request)
+        
+        logger.info(f"차트 데이터 API 완료: {request.ticker}, 데이터 포인트: {len(chart_data.ohlc_data)}")
+        return chart_data
+        
+    except ValueError as e:
+        logger.error(f"차트 데이터 요청 오류: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"차트 데이터 생성 오류: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="차트 데이터 생성 중 오류가 발생했습니다."
         ) 

@@ -2,7 +2,7 @@
 API 응답 모델 정의
 """
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from pydantic import BaseModel, Field
 
 
@@ -188,5 +188,119 @@ class HealthResponse(BaseModel):
                 "status": "healthy",
                 "timestamp": "2024-01-15T10:30:00",
                 "version": "1.0.0"
+            }
+        }
+
+
+class ChartDataPoint(BaseModel):
+    """차트 데이터 포인트"""
+    timestamp: str = Field(..., description="날짜/시간")
+    date: str = Field(..., description="날짜 (YYYY-MM-DD)")
+    open: float = Field(..., description="시가")
+    high: float = Field(..., description="고가") 
+    low: float = Field(..., description="저가")
+    close: float = Field(..., description="종가")
+    volume: int = Field(..., description="거래량")
+
+
+class EquityPoint(BaseModel):
+    """자산 곡선 데이터 포인트"""
+    timestamp: str = Field(..., description="날짜/시간")
+    date: str = Field(..., description="날짜 (YYYY-MM-DD)")
+    equity: float = Field(..., description="자산 가치")
+    return_pct: float = Field(..., description="수익률 (%)")
+    drawdown_pct: float = Field(..., description="드로우다운 (%)")
+
+
+class TradeMarker(BaseModel):
+    """거래 마커 데이터"""
+    timestamp: str = Field(..., description="거래 시간")
+    date: str = Field(..., description="거래 날짜")
+    price: float = Field(..., description="거래 가격")
+    type: str = Field(..., description="거래 타입 (entry/exit)")
+    side: str = Field(..., description="매수/매도 (buy/sell)")
+    size: float = Field(..., description="거래 수량")
+    pnl_pct: Optional[float] = Field(None, description="수익률 (%) - exit 시에만")
+
+
+class IndicatorData(BaseModel):
+    """기술 지표 데이터"""
+    name: str = Field(..., description="지표 이름")
+    type: str = Field(..., description="지표 타입 (line/area/scatter)")
+    color: str = Field(..., description="색상")
+    data: List[Dict[str, Union[str, float]]] = Field(..., description="지표 데이터")
+
+
+class ChartDataResponse(BaseModel):
+    """차트 데이터 응답 모델"""
+    # 기본 정보
+    ticker: str = Field(..., description="티커 심볼")
+    strategy: str = Field(..., description="전략명")
+    start_date: str = Field(..., description="시작 날짜")
+    end_date: str = Field(..., description="종료 날짜")
+    
+    # 차트 데이터
+    ohlc_data: List[ChartDataPoint] = Field(..., description="OHLC 캔들스틱 데이터")
+    equity_data: List[EquityPoint] = Field(..., description="자산 곡선 데이터")
+    trade_markers: List[TradeMarker] = Field(..., description="거래 마커")
+    indicators: List[IndicatorData] = Field(..., description="기술 지표 데이터")
+    
+    # 통계 요약
+    summary_stats: Dict[str, Any] = Field(..., description="주요 통계")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "ticker": "AAPL",
+                "strategy": "sma_crossover",
+                "start_date": "2023-01-01",
+                "end_date": "2023-12-31",
+                "ohlc_data": [
+                    {
+                        "timestamp": "2023-01-03T00:00:00",
+                        "date": "2023-01-03",
+                        "open": 130.28,
+                        "high": 130.90,
+                        "low": 124.17,
+                        "close": 125.07,
+                        "volume": 112117471
+                    }
+                ],
+                "equity_data": [
+                    {
+                        "timestamp": "2023-01-03T00:00:00", 
+                        "date": "2023-01-03",
+                        "equity": 10000.0,
+                        "return_pct": 0.0,
+                        "drawdown_pct": 0.0
+                    }
+                ],
+                "trade_markers": [
+                    {
+                        "timestamp": "2023-01-05T00:00:00",
+                        "date": "2023-01-05", 
+                        "price": 125.50,
+                        "type": "entry",
+                        "side": "buy",
+                        "size": 79,
+                        "pnl_pct": None
+                    }
+                ],
+                "indicators": [
+                    {
+                        "name": "SMA_10",
+                        "type": "line",
+                        "color": "#ff7300",
+                        "data": [
+                            {"timestamp": "2023-01-03T00:00:00", "date": "2023-01-03", "value": 125.5}
+                        ]
+                    }
+                ],
+                "summary_stats": {
+                    "total_return_pct": 15.2,
+                    "total_trades": 8,
+                    "win_rate_pct": 62.5,
+                    "max_drawdown_pct": -8.1
+                }
             }
         } 

@@ -3,13 +3,15 @@
 """
 import time
 from datetime import datetime, date
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import pandas as pd
+import numpy as np
 import logging
+import traceback
 
 from backtesting import Backtest
 from ..models.requests import BacktestRequest, OptimizationRequest
-from ..models.responses import BacktestResult, OptimizationResult
+from ..models.responses import BacktestResult, OptimizationResult, ChartDataResponse, ChartDataPoint, EquityPoint, TradeMarker, IndicatorData
 from ..utils.data_fetcher import data_fetcher
 from .strategy_service import strategy_service
 from ..core.config import settings
@@ -289,6 +291,159 @@ class BacktestService:
         # 티커 유효성 검증은 선택사항으로 변경 (API 호출 속도 향상)
         # if not self.data_fetcher.validate_ticker(request.ticker):
         #     raise ValueError(f"유효하지 않은 티커: {request.ticker}")
+
+    async def generate_chart_data(self, request: BacktestRequest, backtest_result: BacktestResult = None) -> ChartDataResponse:
+        """
+        백테스트 결과로부터 Recharts용 차트 데이터를 생성합니다.
+        """
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # 백테스트가 아직 실행되지 않았다면 실행
+            if backtest_result is None:
+                backtest_result = await self.run_backtest(request)
+            
+            # 데이터 가져오기
+            data = await data_fetcher.get_data(
+                ticker=request.ticker,
+                start_date=request.start_date,
+                end_date=request.end_date
+            )
+            
+            # 백테스트 다시 실행하여 상세 데이터 얻기
+            strategy_class = strategy_service.get_strategy_class(request.strategy)
+            params = request.strategy_params or {}
+            
+            from backtesting import Backtest
+            bt = Backtest(
+                data, 
+                strategy_class, 
+                cash=request.initial_cash,
+                commission=request.commission
+            )
+            
+            # 백테스트 실행 (결과 객체 필요)
+            results = bt.run(**params)
+            
+            # 1. OHLC 데이터 생성
+            ohlc_data = []
+            for idx, row in data.iterrows():
+                ohlc_data.append(ChartDataPoint(
+                    timestamp=idx.isoformat(),
+                    date=idx.strftime('%Y-%m-%d'),
+                    open=self.safe_float(row['Open']),
+                    high=self.safe_float(row['High']),
+                    low=self.safe_float(row['Low']),
+                    close=self.safe_float(row['Close']),
+                    volume=self.safe_int(row.get('Volume', 0))
+                ))
+            
+            # 2. 자산 곡선 데이터 생성
+            equity_curve = results['_equity_curve']
+            equity_data = []
+            initial_equity = equity_curve['Equity'].iloc[0]
+            
+            for idx, row in equity_curve.iterrows():
+                equity = self.safe_float(row['Equity'])
+                return_pct = ((equity / initial_equity) - 1) * 100
+                drawdown_pct = self.safe_float(row.get('DrawdownPct', 0)) * 100
+                
+                equity_data.append(EquityPoint(
+                    timestamp=idx.isoformat(),
+                    date=idx.strftime('%Y-%m-%d'),
+                    equity=equity,
+                    return_pct=return_pct,
+                    drawdown_pct=drawdown_pct
+                ))
+            
+            # 3. 거래 마커 생성
+            trades = results['_trades']
+            trade_markers = []
+            
+            if not trades.empty:
+                for _, trade in trades.iterrows():
+                    # 진입 마커
+                    entry_time = trade.get('EntryTime')
+                    if pd.notna(entry_time):
+                        trade_markers.append(TradeMarker(
+                            timestamp=entry_time.isoformat(),
+                            date=entry_time.strftime('%Y-%m-%d'),
+                            price=self.safe_float(trade['EntryPrice']),
+                            type="entry",
+                            side="buy" if trade['Size'] > 0 else "sell",
+                            size=abs(self.safe_float(trade['Size'])),
+                            pnl_pct=None
+                        ))
+                    
+                    # 청산 마커
+                    exit_time = trade.get('ExitTime')
+                    if pd.notna(exit_time):
+                        trade_markers.append(TradeMarker(
+                            timestamp=exit_time.isoformat(),
+                            date=exit_time.strftime('%Y-%m-%d'),
+                            price=self.safe_float(trade['ExitPrice']),
+                            type="exit",
+                            side="sell" if trade['Size'] > 0 else "buy",
+                            size=abs(self.safe_float(trade['Size'])),
+                            pnl_pct=self.safe_float(trade.get('ReturnPct', 0)) * 100
+                        ))
+            
+            # 4. 기술 지표 데이터 생성
+            indicators = []
+            strategy_indicators = results.get('_strategy', {})
+            
+            if hasattr(strategy_indicators, '_indicators'):
+                color_palette = ['#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042']
+                
+                for i, indicator in enumerate(strategy_indicators._indicators):
+                    if hasattr(indicator, 'name') and hasattr(indicator, '_opts'):
+                        indicator_data = []
+                        indicator_values = np.atleast_2d(indicator)
+                        
+                        for j, values in enumerate(indicator_values):
+                            if len(values) == len(data):
+                                for idx, value in zip(data.index, values):
+                                    if not np.isnan(value):
+                                        indicator_data.append({
+                                            "timestamp": idx.isoformat(),
+                                            "date": idx.strftime('%Y-%m-%d'),
+                                            "value": self.safe_float(value)
+                                        })
+                        
+                        if indicator_data:
+                            indicators.append(IndicatorData(
+                                name=str(indicator.name),
+                                type="line",
+                                color=color_palette[i % len(color_palette)],
+                                data=indicator_data
+                            ))
+            
+            # 5. 요약 통계
+            summary_stats = {
+                "total_return_pct": backtest_result.total_return_pct,
+                "total_trades": backtest_result.total_trades,
+                "win_rate_pct": backtest_result.win_rate_pct,
+                "max_drawdown_pct": backtest_result.max_drawdown_pct,
+                "sharpe_ratio": backtest_result.sharpe_ratio,
+                "profit_factor": backtest_result.profit_factor
+            }
+            
+            return ChartDataResponse(
+                ticker=request.ticker,
+                strategy=request.strategy,
+                start_date=request.start_date,
+                end_date=request.end_date,
+                ohlc_data=ohlc_data,
+                equity_data=equity_data,
+                trade_markers=trade_markers,
+                indicators=indicators,
+                summary_stats=summary_stats
+            )
+            
+        except Exception as e:
+            logger.error(f"차트 데이터 생성 실패: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise Exception(f"차트 데이터 생성 중 오류 발생: {str(e)}")
 
 
 # 글로벌 인스턴스
