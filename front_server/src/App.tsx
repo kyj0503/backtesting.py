@@ -404,123 +404,539 @@ function App() {
   const [chartData, setChartData] = useState<ChartDataResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // 백테스트 파라미터 상태
+  const [backtestParams, setBacktestParams] = useState({
+    ticker: 'AAPL',
+    start_date: '2023-01-01',
+    end_date: '2023-12-31',
+    initial_cash: 10000,
+    strategy: 'buy_and_hold',
+    strategy_params: {} as any
+  });
+
+  // 전략별 기본 파라미터
+  const strategyDefaults = {
+    'buy_and_hold': {},
+    'sma_crossover': {
+      short_window: 10,
+      long_window: 20
+    },
+    'rsi_strategy': {
+      rsi_period: 14,
+      rsi_upper: 70,
+      rsi_lower: 30
+    },
+    'bollinger_bands': {
+      period: 20,
+      std_dev: 2.0
+    },
+    'macd_strategy': {
+      fast_period: 12,
+      slow_period: 26,
+      signal_period: 9
+    }
+  };
 
   // 백테스트 실행
-  const runBacktest = async () => {
+  const runBacktest = async (params = backtestParams) => {
     setLoading(true);
     setError(null);
     
     try {
-      const params = {
-        ticker: 'AAPL',
-        start_date: '2023-01-01',
-        end_date: '2023-12-31',
-        initial_cash: 10000,
-        strategy: 'buy_and_hold',
-      };
-      
+      console.log('백테스트 실행 파라미터:', params);
       const data = await fetchChartData(params);
-      console.log('받은 차트 데이터:', data); // 디버깅용
-      console.log('OHLC 데이터 수:', data.ohlc_data?.length || 0);
-      console.log('자산 곡선 데이터 수:', data.equity_data?.length || 0);
-      console.log('거래 마커 수:', data.trade_markers?.length || 0);
-      console.log('지표 수:', data.indicators?.length || 0);
       setChartData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.');
+      const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.';
+      setError(errorMessage);
+      console.error('백테스트 오류:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // 폼 제출 핸들러
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    runBacktest(backtestParams);
+  };
+
+  // 파라미터 변경 핸들러
+  const handleParamChange = (key: string, value: string | number) => {
+    setBacktestParams(prev => ({
+      ...prev,
+      [key]: value,
+      // 전략이 변경될 때 해당 전략의 기본 파라미터로 초기화
+      ...(key === 'strategy' && {
+        strategy_params: strategyDefaults[value as keyof typeof strategyDefaults] || {}
+      })
+    }));
+  };
+
+  // 전략 파라미터 변경 핸들러
+  const handleStrategyParamChange = (paramKey: string, value: number) => {
+    setBacktestParams(prev => ({
+      ...prev,
+      strategy_params: {
+        ...prev.strategy_params,
+        [paramKey]: value
+      }
+    }));
+  };
+
+  // 초기 로드 시 기본 백테스트 실행
   useEffect(() => {
     runBacktest();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg">백테스트 실행 중...</div>
-      </div>
-    );
-  }
+  // 전략별 파라미터 입력 컴포넌트
+  const StrategyParamsInput = () => {
+    const strategy = backtestParams.strategy;
+    
+    if (strategy === 'buy_and_hold') {
+      return (
+        <div className="text-sm text-gray-600 bg-green-50 p-3 rounded border border-green-200">
+          <p>💡 Buy & Hold 전략은 추가 파라미터가 필요하지 않습니다. 첫날 매수 후 마지막날까지 보유합니다.</p>
+        </div>
+      );
+    }
+
+    if (strategy === 'sma_crossover') {
+      return (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              단기 이동평균 (일)
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.short_window || 10}
+              onChange={(e) => handleStrategyParamChange('short_window', parseInt(e.target.value) || 10)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="5"
+              max="50"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">5-50일 (기본값: 10일)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              장기 이동평균 (일)
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.long_window || 20}
+              onChange={(e) => handleStrategyParamChange('long_window', parseInt(e.target.value) || 20)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="10"
+              max="200"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">10-200일 (기본값: 20일)</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (strategy === 'rsi_strategy') {
+      return (
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              RSI 기간 (일)
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.rsi_period || 14}
+              onChange={(e) => handleStrategyParamChange('rsi_period', parseInt(e.target.value) || 14)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="5"
+              max="50"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">5-50일 (기본값: 14일)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              과매수 임계값
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.rsi_upper || 70}
+              onChange={(e) => handleStrategyParamChange('rsi_upper', parseFloat(e.target.value) || 70)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="50"
+              max="90"
+              step="5"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">50-90 (기본값: 70)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              과매도 임계값
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.rsi_lower || 30}
+              onChange={(e) => handleStrategyParamChange('rsi_lower', parseFloat(e.target.value) || 30)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="10"
+              max="50"
+              step="5"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">10-50 (기본값: 30)</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (strategy === 'bollinger_bands') {
+      return (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              이동평균 기간 (일)
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.period || 20}
+              onChange={(e) => handleStrategyParamChange('period', parseInt(e.target.value) || 20)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="10"
+              max="50"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">10-50일 (기본값: 20일)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              표준편차 배수
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.std_dev || 2.0}
+              onChange={(e) => handleStrategyParamChange('std_dev', parseFloat(e.target.value) || 2.0)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="1.0"
+              max="3.0"
+              step="0.1"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">1.0-3.0 (기본값: 2.0)</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (strategy === 'macd_strategy') {
+      return (
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              빠른 EMA (일)
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.fast_period || 12}
+              onChange={(e) => handleStrategyParamChange('fast_period', parseInt(e.target.value) || 12)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="5"
+              max="20"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">5-20일 (기본값: 12일)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              느린 EMA (일)
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.slow_period || 26}
+              onChange={(e) => handleStrategyParamChange('slow_period', parseInt(e.target.value) || 26)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="20"
+              max="50"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">20-50일 (기본값: 26일)</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              시그널 라인 (일)
+            </label>
+            <input
+              type="number"
+              value={backtestParams.strategy_params.signal_period || 9}
+              onChange={(e) => handleStrategyParamChange('signal_period', parseInt(e.target.value) || 9)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="5"
+              max="15"
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">5-15일 (기본값: 9일)</p>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   if (error) {
     return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-        <strong>오류:</strong> {error}
-      </div>
-    );
-  }
-
-  if (!chartData) {
-    return (
-      <div className="text-center py-8">
-        <button 
-          onClick={runBacktest}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-        >
-          백테스트 실행
-        </button>
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+          <strong>오류:</strong> {error}
+          <button 
+            onClick={() => setError(null)}
+            className="ml-4 bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
+          >
+            다시 시도
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">
-          {chartData.ticker} - {chartData.strategy} 백테스트 결과
-        </h1>
-        <p className="text-gray-600">
-          {chartData.start_date} ~ {chartData.end_date}
-        </p>
+      {/* 백테스트 입력 폼 */}
+      <div className="mb-8 bg-white p-6 rounded-lg shadow-md">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">🔬 백테스팅 분석 도구</h1>
         
-        {/* 백테스팅 설명 배너 */}
-        <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
-          <div className="flex items-start space-x-3">
-            <div className="text-2xl">🔬</div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 티커 입력 */}
             <div>
-              <h2 className="text-lg font-semibold text-blue-800 mb-2">백테스팅이란?</h2>
-              <p className="text-sm text-blue-700 leading-relaxed">
-                과거 주가 데이터를 이용해 투자 전략의 성과를 시뮬레이션하는 방법입니다. 
-                현재 결과는 <strong>Buy & Hold 전략</strong> (매수 후 보유)으로 
-                <strong>${chartData.ticker}</strong> 주식에 1만 달러를 투자했을 때의 성과를 보여줍니다.
-              </p>
-              <p className="text-xs text-blue-600 mt-2">
-                ⚠️ 과거 성과가 미래 수익을 보장하지는 않습니다. 실제 투자 시에는 신중하게 결정하세요.
-              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                주식 티커
+              </label>
+              <input
+                type="text"
+                value={backtestParams.ticker}
+                onChange={(e) => handleParamChange('ticker', e.target.value.toUpperCase())}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="예: AAPL, GOOGL"
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-500 mt-1">미국 주식 티커를 입력하세요</p>
+            </div>
+
+            {/* 시작 날짜 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                시작 날짜
+              </label>
+              <input
+                type="date"
+                value={backtestParams.start_date}
+                onChange={(e) => handleParamChange('start_date', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={loading}
+              />
+            </div>
+
+            {/* 종료 날짜 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                종료 날짜
+              </label>
+              <input
+                type="date"
+                value={backtestParams.end_date}
+                onChange={(e) => handleParamChange('end_date', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={loading}
+              />
+            </div>
+
+            {/* 초기 투자금 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                초기 투자금 ($)
+              </label>
+              <input
+                type="number"
+                value={backtestParams.initial_cash}
+                onChange={(e) => handleParamChange('initial_cash', parseFloat(e.target.value) || 0)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                min="1000"
+                step="1000"
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-500 mt-1">최소 $1,000</p>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* 통계 요약 */}
-      <StatsSummary stats={chartData.summary_stats} />
-
-      {/* 차트들 */}
-      <div className="space-y-6">
-        {/* 가격 차트 */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <OHLCChart 
-            data={chartData.ohlc_data} 
-            indicators={chartData.indicators}
-            trades={chartData.trade_markers}
-          />
-        </div>
-
-        {/* 자산 곡선 */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <EquityChart data={chartData.equity_data} />
-        </div>
-
-        {/* 거래 분석 */}
-        {chartData.trade_markers.length > 0 && (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <TradesChart trades={chartData.trade_markers} />
+          {/* 전략 선택 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              투자 전략
+            </label>
+            <select
+              value={backtestParams.strategy}
+              onChange={(e) => handleParamChange('strategy', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+            >
+              <option value="buy_and_hold">Buy & Hold (매수 후 보유)</option>
+              <option value="sma_crossover">SMA Crossover (이동평균 교차)</option>
+              <option value="rsi_strategy">RSI Strategy (과매수/과매도)</option>
+              <option value="bollinger_bands">Bollinger Bands (볼린저 밴드)</option>
+              <option value="macd_strategy">MACD Strategy (MACD 교차)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {backtestParams.strategy === 'buy_and_hold' && '가장 단순한 장기 투자 전략'}
+              {backtestParams.strategy === 'sma_crossover' && '단기/장기 이동평균 교차로 매매 신호 생성'}
+              {backtestParams.strategy === 'rsi_strategy' && 'RSI 지표로 과매수/과매도 구간에서 매매'}
+              {backtestParams.strategy === 'bollinger_bands' && '볼린저 밴드 상/하단 돌파로 매매'}
+              {backtestParams.strategy === 'macd_strategy' && 'MACD 라인 교차로 매매 신호 생성'}
+            </p>
           </div>
-        )}
+
+          {/* 전략별 파라미터 입력 컴포넌트 */}
+          <StrategyParamsInput />
+
+          {/* 실행 버튼 */}
+          <div className="flex items-center space-x-4">
+            <button 
+              type="submit"
+              disabled={loading}
+              className={`px-6 py-3 rounded-md font-medium transition-colors ${
+                loading 
+                  ? 'bg-gray-400 cursor-not-allowed text-gray-700'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {loading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>분석 중...</span>
+                </div>
+              ) : (
+                '백테스트 실행'
+              )}
+            </button>
+            
+            {/* 프리셋 버튼들 */}
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const newParams = { ...backtestParams, ticker: 'AAPL', start_date: '2023-01-01', end_date: '2023-12-31' };
+                  setBacktestParams(newParams);
+                }}
+                className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+                disabled={loading}
+              >
+                AAPL 2023
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newParams = { ...backtestParams, ticker: 'TSLA', start_date: '2022-01-01', end_date: '2022-12-31' };
+                  setBacktestParams(newParams);
+                }}
+                className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+              >
+                TSLA 2022
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newParams = { ...backtestParams, ticker: 'NVDA', start_date: '2023-01-01', end_date: '2024-01-01' };
+                  setBacktestParams(newParams);
+                }}
+                className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+              >
+                NVDA 2023
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
+
+      {/* 로딩 상태 */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <div className="text-lg font-medium text-gray-700">백테스트 실행 중...</div>
+          <div className="text-sm text-gray-500 mt-2">
+            {backtestParams.ticker} 데이터를 분석하고 있습니다
+          </div>
+        </div>
+      )}
+
+      {/* 결과 표시 */}
+      {chartData && !loading && (
+        <>
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">
+              📊 {chartData.ticker} - {chartData.strategy} 백테스트 결과
+            </h2>
+            <p className="text-gray-600">
+              {chartData.start_date} ~ {chartData.end_date} | 초기 투자금: ${backtestParams.initial_cash.toLocaleString()}
+            </p>
+            
+            {/* 백테스팅 설명 배너 */}
+            <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+              <div className="flex items-start space-x-3">
+                <div className="text-2xl">🔬</div>
+                <div>
+                  <h3 className="text-lg font-semibold text-blue-800 mb-2">백테스팅 결과 해석</h3>
+                  <p className="text-sm text-blue-700 leading-relaxed">
+                    과거 주가 데이터를 이용해 <strong>{backtestParams.strategy.replace('_', ' ')}</strong> 전략의 성과를 시뮬레이션한 결과입니다. 
+                    <strong>{chartData.ticker}</strong> 주식에 ${backtestParams.initial_cash.toLocaleString()}를 투자했을 때의 성과를 보여줍니다.
+                  </p>
+                  <p className="text-xs text-blue-600 mt-2">
+                    ⚠️ 과거 성과가 미래 수익을 보장하지는 않습니다. 실제 투자 시에는 신중하게 결정하세요.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 통계 요약 */}
+          <StatsSummary stats={chartData.summary_stats} />
+
+          {/* 차트들 */}
+          <div className="space-y-8">
+            {/* 가격 차트 */}
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <OHLCChart 
+                data={chartData.ohlc_data} 
+                indicators={chartData.indicators}
+                trades={chartData.trade_markers}
+              />
+            </div>
+
+            {/* 자산 곡선 */}
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <EquityChart data={chartData.equity_data} />
+            </div>
+
+            {/* 거래 분석 */}
+            {chartData.trade_markers.length > 0 && (
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <TradesChart trades={chartData.trade_markers} />
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* 초기 상태 (데이터 없음) */}
+      {!chartData && !loading && !error && (
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">📈</div>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">백테스팅을 시작하세요</h2>
+          <p className="text-gray-500 mb-6">위의 폼에서 티커와 기간을 설정한 후 백테스트를 실행해보세요.</p>
+        </div>
+      )}
     </div>
   );
 }
