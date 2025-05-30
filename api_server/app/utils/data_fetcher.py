@@ -54,16 +54,29 @@ class DataFetcher:
             
             # 캐시된 데이터 확인
             if use_cache and cache_file.exists():
-                # 파일 수정 시간 확인
-                file_time = datetime.fromtimestamp(cache_file.stat().st_mtime)
-                if (datetime.now() - file_time).total_seconds() < cache_hours * 3600:
-                    logger.info(f"캐시된 데이터 사용: {ticker}")
+                # 과거 데이터인지 확인 (종료일이 오늘 이전이면 과거 데이터)
+                is_historical = end_date < date.today()
+                
+                if is_historical:
+                    # 과거 데이터는 영구 캐시 (시간 체크 없음)
+                    logger.info(f"과거 데이터 캐시 사용 (영구): {ticker}")
                     try:
                         data = pd.read_csv(cache_file, index_col=0, parse_dates=True)
                         if not data.empty and len(data) > 0:
                             return data
                     except Exception as e:
                         logger.warning(f"캐시 파일 읽기 실패, 새로 다운로드: {e}")
+                else:
+                    # 현재/미래 데이터만 시간 체크
+                    file_time = datetime.fromtimestamp(cache_file.stat().st_mtime)
+                    if (datetime.now() - file_time).total_seconds() < cache_hours * 3600:
+                        logger.info(f"최신 데이터 캐시 사용 ({cache_hours}시간 유효): {ticker}")
+                        try:
+                            data = pd.read_csv(cache_file, index_col=0, parse_dates=True)
+                            if not data.empty and len(data) > 0:
+                                return data
+                        except Exception as e:
+                            logger.warning(f"캐시 파일 읽기 실패, 새로 다운로드: {e}")
             
             # Yahoo Finance에서 데이터 다운로드
             logger.info(f"Yahoo Finance에서 데이터 다운로드: {ticker}")
