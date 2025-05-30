@@ -4,6 +4,24 @@
 
 이 프로젝트는 주식 투자 전략의 백테스팅을 위한 FastAPI 기반 REST API 서버입니다. 다양한 기술적 분석 전략을 지원하며, 실시간 차트 데이터와 성과 분석 기능을 제공합니다.
 
+## ⚠️ 중요 안내
+
+### 🔧 환경 요구사항
+- **Python 3.11+** 권장
+- **macOS/Linux**: `python3` 명령어 사용
+- **Windows**: `python` 명령어 사용
+- **가상환경**: 프로젝트 루트의 `.venv` 사용 (api_server 내부의 venv 아님)
+
+### 📁 프로젝트 구조
+```
+backtesting.py/          # 프로젝트 루트
+├── .venv/              # 메인 가상환경 (여기 사용!)
+├── api_server/         # FastAPI 서버
+│   ├── venv/          # 사용하지 않음
+│   └── ...
+└── front_server/       # React 프론트엔드
+```
+
 ## ✨ 주요 기능
 
 ### 🔬 백테스팅
@@ -28,27 +46,29 @@
 ### 1. 설치
 
 ```bash
-# 저장소 클론
+# 저장소 클론 (이미 클론된 경우 생략)
 git clone <repository-url>
+cd backtesting.py
+
+# 프로젝트 루트의 .venv 가상환경 활성화
+source .venv/bin/activate  # Linux/Mac
+# 또는
+.venv\Scripts\activate     # Windows
+
+# API 서버 디렉토리로 이동
 cd api_server
 
-# 가상환경 생성 및 활성화
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 또는
-venv\Scripts\activate     # Windows
-
-# 의존성 설치
+# 의존성 설치 (이미 설치된 경우 생략)
 pip install -r requirements.txt
 ```
 
 ### 2. 환경 설정
 
 ```bash
-# 환경변수 파일 복사 및 설정
+# 환경변수 파일 복사 및 설정 (선택사항 - 기본값으로도 실행 가능)
 cp env.example .env
 
-# .env 파일 편집
+# .env 파일 편집 (필요시)
 # LOG_LEVEL=INFO
 # DEBUG=true
 # HOST=0.0.0.0
@@ -59,10 +79,12 @@ cp env.example .env
 
 ```bash
 # 개발 모드 (자동 재시작)
-python run_server.py
+python3 run_server.py
 
 # 또는 uvicorn 직접 실행
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# 참고: macOS에서는 python 대신 python3를 사용해야 합니다
 ```
 
 ### 4. API 문서 확인
@@ -419,6 +441,45 @@ mypy app/
 | `HOST` | 서버 호스트 | `0.0.0.0` |
 | `PORT` | 서버 포트 | `8000` |
 | `CORS_ORIGINS` | CORS 허용 도메인 | `["*"]` |
+
+## 🔧 트러블슈팅
+
+### 자주 발생하는 문제들
+
+#### 1. `python: command not found` (macOS/Linux)
+```bash
+# 해결방법: python3 사용
+python3 run_server.py
+```
+
+#### 2. `ModuleNotFoundError` 또는 의존성 오류
+```bash
+# 올바른 가상환경 활성화 확인
+source .venv/bin/activate  # 프로젝트 루트에서
+cd api_server
+pip install -r requirements.txt
+```
+
+#### 3. Pydantic validation 오류
+```bash
+# .env 파일 문제일 수 있음 - 기본값으로 실행
+rm .env  # 환경변수 파일 삭제
+python3 run_server.py
+```
+
+#### 4. 포트 8000 이미 사용 중
+```bash
+# 다른 포트로 실행
+uvicorn app.main:app --host 0.0.0.0 --port 8001
+```
+
+#### 5. 가상환경 혼동
+```bash
+# 올바른 경로 확인
+pwd  # /path/to/backtesting.py 이어야 함
+ls -la .venv  # .venv 폴더가 있어야 함
+source .venv/bin/activate
+```
 
 ## 📄 라이선스
 
